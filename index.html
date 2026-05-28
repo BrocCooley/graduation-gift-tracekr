@@ -39,21 +39,23 @@
 
   .stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
     padding: 16px 20px;
     background: #f8f9fc;
     border-bottom: 1px solid #eee;
   }
   .stat {
     text-align: center;
-    padding: 10px 6px;
+    padding: 10px 4px;
     background: #fff;
     border-radius: 10px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.05);
   }
   .stat .label { font-size: 10px; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
   .stat .value { font-size: 18px; font-weight: 700; color: #4a3f8c; margin-top: 4px; }
+  .stat.warn .value { color: #d9534f; }
+  .stat.good .value { color: #2d8659; }
 
   .form-section {
     padding: 20px;
@@ -80,7 +82,7 @@
     padding: 12px;
     border: 1.5px solid #e0e0e8;
     border-radius: 8px;
-    font-size: 16px; /* 16px prevents iOS zoom */
+    font-size: 16px;
     transition: border-color 0.15s;
     -webkit-appearance: none;
     background: #fff;
@@ -148,6 +150,8 @@
     border-bottom: 1px solid #f0f0f5;
     font-size: 15px;
   }
+  tbody tr.thanked { background: #f6fbf7; }
+  tbody tr.thanked td:first-child { color: #2d8659; }
   .amount { font-weight: 600; color: #2d8659; white-space: nowrap; }
   .empty {
     text-align: center;
@@ -156,6 +160,29 @@
     font-style: italic;
   }
   .actions-cell { text-align: right; white-space: nowrap; }
+
+  /* Thank-you toggle */
+  .ty-cell { text-align: center; width: 1%; white-space: nowrap; }
+  .ty-btn {
+    border: 1.5px solid #e0e0e8;
+    background: #fff;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #888;
+    font-weight: 600;
+    transition: all 0.15s;
+    min-width: 70px;
+  }
+  .ty-btn:active { transform: scale(0.95); }
+  .ty-btn.done {
+    background: #2d8659;
+    border-color: #2d8659;
+    color: #fff;
+  }
+  .ty-btn.todo:hover { border-color: #d9534f; color: #d9534f; }
+
   .toast {
     position: fixed;
     bottom: 24px;
@@ -175,6 +202,7 @@
   @media (max-width: 640px) {
     body { padding: 10px; }
     .container { border-radius: 12px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
     .form-row { grid-template-columns: 1fr; }
     .form-row .btn { width: 100%; }
     header { padding: 20px; }
@@ -182,6 +210,7 @@
     .toolbar { padding-left: 14px; padding-right: 14px; }
     thead th, tbody td { padding: 10px 5px; font-size: 14px; }
     .btn-edit-sm, .btn-danger-sm { padding: 6px 8px; }
+    .ty-btn { padding: 5px 10px; font-size: 12px; min-width: 60px; }
   }
 </style>
 </head>
@@ -196,6 +225,7 @@
     <div class="stat"><div class="label">Cards</div><div class="value" id="statCount">0</div></div>
     <div class="stat"><div class="label">Total</div><div class="value" id="statTotal">$0</div></div>
     <div class="stat"><div class="label">Average</div><div class="value" id="statAvg">$0</div></div>
+    <div class="stat" id="statTyWrap"><div class="label">Thank-yous left</div><div class="value" id="statTy">0</div></div>
   </div>
 
   <div class="form-section">
@@ -234,6 +264,7 @@
           <th data-sort="name">Name <span class="arrow"></span></th>
           <th data-sort="amount">Amount <span class="arrow"></span></th>
           <th data-sort="date">Date <span class="arrow"></span></th>
+          <th data-sort="thanked">Thank You <span class="arrow"></span></th>
           <th></th>
         </tr>
       </thead>
@@ -255,6 +286,8 @@
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       entries = raw ? JSON.parse(raw) : [];
+      // Migration: ensure thanked field exists
+      entries = entries.map(e => ({ thanked: false, ...e }));
     } catch (e) { entries = []; }
   }
   function save() {
@@ -285,7 +318,8 @@
     const sorted = [...entries].sort((a, b) => {
       let av = a[sortBy], bv = b[sortBy];
       if (sortBy === "amount") { av = +av; bv = +bv; }
-      if (sortBy === "name") { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+      if (sortBy === "name") { av = (av||"").toLowerCase(); bv = (bv||"").toLowerCase(); }
+      if (sortBy === "thanked") { av = a.thanked ? 1 : 0; bv = b.thanked ? 1 : 0; }
       if (av < bv) return sortDir === "asc" ? -1 : 1;
       if (av > bv) return sortDir === "asc" ? 1 : -1;
       return 0;
@@ -298,10 +332,16 @@
       empty.style.display = "none";
       sorted.forEach(e => {
         const tr = document.createElement("tr");
+        if (e.thanked) tr.classList.add("thanked");
         tr.innerHTML = `
           <td>${escapeHtml(e.name)}</td>
           <td class="amount">${fmtMoney(e.amount)}</td>
           <td>${fmtDate(e.date)}</td>
+          <td class="ty-cell">
+            <button class="ty-btn ${e.thanked ? 'done' : 'todo'}" data-ty="${e.id}">
+              ${e.thanked ? '✓ Sent' : 'To-do'}
+            </button>
+          </td>
           <td class="actions-cell">
             <button class="btn-edit-sm" data-edit="${e.id}">Edit</button>
             <button class="btn-danger-sm" data-del="${e.id}">Delete</button>
@@ -321,9 +361,14 @@
     });
 
     const total = entries.reduce((s, e) => s + Number(e.amount), 0);
+    const tyLeft = entries.filter(e => !e.thanked).length;
     document.getElementById("statCount").textContent = entries.length;
     document.getElementById("statTotal").textContent = fmtMoney(total);
     document.getElementById("statAvg").textContent = entries.length ? fmtMoney(total / entries.length) : "$0.00";
+    document.getElementById("statTy").textContent = tyLeft;
+    const tyWrap = document.getElementById("statTyWrap");
+    tyWrap.classList.remove("warn", "good");
+    if (entries.length > 0) tyWrap.classList.add(tyLeft === 0 ? "good" : "warn");
   }
 
   function escapeHtml(s) {
@@ -350,7 +395,7 @@
       if (idx >= 0) entries[idx] = { ...entries[idx], name, amount, date };
       toast("Updated");
     } else {
-      entries.push({ id: uid(), name, amount, date });
+      entries.push({ id: uid(), name, amount, date, thanked: false });
       toast("Added");
     }
     save();
@@ -362,6 +407,7 @@
   document.getElementById("tbody").addEventListener("click", (ev) => {
     const delId = ev.target.dataset.del;
     const editId = ev.target.dataset.edit;
+    const tyId = ev.target.closest("[data-ty]")?.dataset.ty;
     if (delId) {
       if (confirm("Delete this entry?")) {
         entries = entries.filter(e => e.id !== delId);
@@ -378,6 +424,13 @@
         document.getElementById("submitBtn").textContent = "Save";
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
+    } else if (tyId) {
+      const e = entries.find(x => x.id === tyId);
+      if (e) {
+        e.thanked = !e.thanked;
+        save(); render();
+        toast(e.thanked ? "Thank-you sent ✓" : "Marked as to-do");
+      }
     }
   });
 
@@ -390,11 +443,10 @@
     });
   });
 
-  // Export
   document.getElementById("exportBtn").addEventListener("click", () => {
     const data = {
       exportedAt: new Date().toISOString(),
-      version: 1,
+      version: 2,
       entries
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -410,7 +462,6 @@
     toast("Backup downloaded");
   });
 
-  // Import
   document.getElementById("importBtn").addEventListener("click", () => {
     document.getElementById("importFile").click();
   });
@@ -423,20 +474,23 @@
         const data = JSON.parse(e.target.result);
         const incoming = Array.isArray(data) ? data : data.entries;
         if (!Array.isArray(incoming)) throw new Error("Invalid file");
+        const normalized = incoming.map(item => ({
+          thanked: false,
+          ...item,
+          id: item.id || uid()
+        }));
         const choice = confirm(
-          `Import ${incoming.length} entries?\n\nOK = Merge with existing entries\nCancel = Replace everything`
+          `Import ${normalized.length} entries?\n\nOK = Merge with existing entries\nCancel = Replace everything`
         );
         if (choice) {
-          // Merge — skip duplicates by id
           const existingIds = new Set(entries.map(x => x.id));
-          incoming.forEach(item => {
-            if (!item.id) item.id = uid();
+          normalized.forEach(item => {
             if (!existingIds.has(item.id)) entries.push(item);
           });
-          toast(`Merged ${incoming.length} entries`);
+          toast(`Merged ${normalized.length} entries`);
         } else {
-          entries = incoming.map(item => ({ ...item, id: item.id || uid() }));
-          toast(`Replaced — ${incoming.length} entries loaded`);
+          entries = normalized;
+          toast(`Replaced — ${normalized.length} entries loaded`);
         }
         save();
         render();
