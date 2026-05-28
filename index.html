@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Grad Cards" />
+<meta name="theme-color" content="#667eea" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23667eea'/%3E%3Ctext x='50' y='68' font-size='60' text-anchor='middle'%3E%F0%9F%8E%93%3C/text%3E%3C/svg%3E" />
+<title>Grad Card Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { overscroll-behavior-y: contain; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 16px;
+    padding-top: env(safe-area-inset-top, 16px);
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+    color: #333;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    overflow: hidden;
+  }
+  header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    padding: 24px 24px;
+  }
+  header h1 { font-size: 24px; margin-bottom: 4px; }
+  header p { opacity: 0.9; font-size: 13px; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 16px 20px;
+    background: #f8f9fc;
+    border-bottom: 1px solid #eee;
+  }
+  .stat {
+    text-align: center;
+    padding: 10px 6px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+  .stat .label { font-size: 10px; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
+  .stat .value { font-size: 18px; font-weight: 700; color: #4a3f8c; margin-top: 4px; }
+
+  .form-section {
+    padding: 20px;
+    background: #fff;
+    border-bottom: 1px solid #eee;
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 5px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+  }
+  .field input {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid #e0e0e8;
+    border-radius: 8px;
+    font-size: 16px; /* 16px prevents iOS zoom */
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    background: #fff;
+  }
+  .field input:focus { outline: none; border-color: #667eea; }
+  .btn {
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-secondary {
+    background: #f0f0f5;
+    color: #555;
+  }
+  .btn-danger-sm, .btn-edit-sm {
+    background: transparent;
+    padding: 6px 10px;
+    font-size: 13px;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .btn-danger-sm { color: #d9534f; }
+  .btn-danger-sm:hover { background: #fee; }
+  .btn-edit-sm { color: #667eea; margin-right: 2px; }
+  .btn-edit-sm:hover { background: #eef; }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px 0;
+    flex-wrap: wrap;
+  }
+  .toolbar .btn { padding: 8px 14px; font-size: 13px; }
+
+  .table-wrap { padding: 0 20px 20px; overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+  thead th {
+    text-align: left;
+    padding: 10px 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #666;
+    border-bottom: 2px solid #eee;
+    cursor: pointer;
+    user-select: none;
+    letter-spacing: 0.4px;
+  }
+  thead th.sorted { color: #667eea; }
+  thead th .arrow { font-size: 9px; margin-left: 3px; }
+  tbody td {
+    padding: 12px 8px;
+    border-bottom: 1px solid #f0f0f5;
+    font-size: 15px;
+  }
+  .amount { font-weight: 600; color: #2d8659; white-space: nowrap; }
+  .empty {
+    text-align: center;
+    padding: 32px 20px;
+    color: #999;
+    font-style: italic;
+  }
+  .actions-cell { text-align: right; white-space: nowrap; }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #2d8659;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    transition: transform 0.25s;
+    z-index: 1000;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 640px) {
+    body { padding: 10px; }
+    .container { border-radius: 12px; }
+    .form-row { grid-template-columns: 1fr; }
+    .form-row .btn { width: 100%; }
+    header { padding: 20px; }
+    .table-wrap, .form-section { padding-left: 14px; padding-right: 14px; }
+    .toolbar { padding-left: 14px; padding-right: 14px; }
+    thead th, tbody td { padding: 10px 5px; font-size: 14px; }
+    .btn-edit-sm, .btn-danger-sm { padding: 6px 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🎓 Grad Card Tracker</h1>
+    <p>Track who gifted what for graduation</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="label">Cards</div><div class="value" id="statCount">0</div></div>
+    <div class="stat"><div class="label">Total</div><div class="value" id="statTotal">$0</div></div>
+    <div class="stat"><div class="label">Average</div><div class="value" id="statAvg">$0</div></div>
+  </div>
+
+  <div class="form-section">
+    <form id="entryForm">
+      <div class="form-row">
+        <div class="field">
+          <label for="name">From</label>
+          <input type="text" id="name" placeholder="e.g. Grandma Pat" autocomplete="off" required />
+        </div>
+        <div class="field">
+          <label for="amount">Amount ($)</label>
+          <input type="number" id="amount" step="0.01" min="0" inputmode="decimal" placeholder="50.00" required />
+        </div>
+        <div class="field">
+          <label for="date">Date</label>
+          <input type="date" id="date" required />
+        </div>
+        <div class="field">
+          <button type="submit" class="btn" id="submitBtn">Add</button>
+        </div>
+      </div>
+      <input type="hidden" id="editId" value="" />
+    </form>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn btn-secondary" id="exportBtn">⬇️ Export Backup</button>
+    <button class="btn btn-secondary" id="importBtn">⬆️ Import Backup</button>
+    <input type="file" id="importFile" accept="application/json,.json" style="display:none" />
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-sort="name">Name <span class="arrow"></span></th>
+          <th data-sort="amount">Amount <span class="arrow"></span></th>
+          <th data-sort="date">Date <span class="arrow"></span></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="empty" class="empty" style="display:none;">No grad cards yet. Add your first one above!</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const STORAGE_KEY = "gradCardTracker_v1";
+  let entries = [];
+  let sortBy = "date";
+  let sortDir = "desc";
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      entries = raw ? JSON.parse(raw) : [];
+    } catch (e) { entries = []; }
+  }
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  }
+  function fmtMoney(n) {
+    return "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtDate(iso) {
+    if (!iso) return "";
+    const [y, m, d] = iso.split("-");
+    return `${m}/${d}/${y}`;
+  }
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+  function toast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  function render() {
+    const tbody = document.getElementById("tbody");
+    const empty = document.getElementById("empty");
+    const sorted = [...entries].sort((a, b) => {
+      let av = a[sortBy], bv = b[sortBy];
+      if (sortBy === "amount") { av = +av; bv = +bv; }
+      if (sortBy === "name") { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    tbody.innerHTML = "";
+    if (sorted.length === 0) {
+      empty.style.display = "block";
+    } else {
+      empty.style.display = "none";
+      sorted.forEach(e => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${escapeHtml(e.name)}</td>
+          <td class="amount">${fmtMoney(e.amount)}</td>
+          <td>${fmtDate(e.date)}</td>
+          <td class="actions-cell">
+            <button class="btn-edit-sm" data-edit="${e.id}">Edit</button>
+            <button class="btn-danger-sm" data-del="${e.id}">Delete</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.querySelectorAll("thead th").forEach(th => {
+      th.classList.remove("sorted");
+      const arrow = th.querySelector(".arrow");
+      if (arrow) arrow.textContent = "";
+      if (th.dataset.sort === sortBy) {
+        th.classList.add("sorted");
+        if (arrow) arrow.textContent = sortDir === "asc" ? "▲" : "▼";
+      }
+    });
+
+    const total = entries.reduce((s, e) => s + Number(e.amount), 0);
+    document.getElementById("statCount").textContent = entries.length;
+    document.getElementById("statTotal").textContent = fmtMoney(total);
+    document.getElementById("statAvg").textContent = entries.length ? fmtMoney(total / entries.length) : "$0.00";
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c]);
+  }
+
+  function resetForm() {
+    document.getElementById("entryForm").reset();
+    document.getElementById("editId").value = "";
+    document.getElementById("submitBtn").textContent = "Add";
+    document.getElementById("date").value = new Date().toISOString().slice(0,10);
+  }
+
+  document.getElementById("entryForm").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const name = document.getElementById("name").value.trim();
+    const amount = parseFloat(document.getElementById("amount").value);
+    const date = document.getElementById("date").value;
+    const editId = document.getElementById("editId").value;
+    if (!name || isNaN(amount) || !date) return;
+
+    if (editId) {
+      const idx = entries.findIndex(e => e.id === editId);
+      if (idx >= 0) entries[idx] = { ...entries[idx], name, amount, date };
+      toast("Updated");
+    } else {
+      entries.push({ id: uid(), name, amount, date });
+      toast("Added");
+    }
+    save();
+    render();
+    resetForm();
+    document.getElementById("name").focus();
+  });
+
+  document.getElementById("tbody").addEventListener("click", (ev) => {
+    const delId = ev.target.dataset.del;
+    const editId = ev.target.dataset.edit;
+    if (delId) {
+      if (confirm("Delete this entry?")) {
+        entries = entries.filter(e => e.id !== delId);
+        save(); render();
+        toast("Deleted");
+      }
+    } else if (editId) {
+      const e = entries.find(x => x.id === editId);
+      if (e) {
+        document.getElementById("name").value = e.name;
+        document.getElementById("amount").value = e.amount;
+        document.getElementById("date").value = e.date;
+        document.getElementById("editId").value = e.id;
+        document.getElementById("submitBtn").textContent = "Save";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  });
+
+  document.querySelectorAll("thead th[data-sort]").forEach(th => {
+    th.addEventListener("click", () => {
+      const col = th.dataset.sort;
+      if (sortBy === col) sortDir = sortDir === "asc" ? "desc" : "asc";
+      else { sortBy = col; sortDir = col === "name" ? "asc" : "desc"; }
+      render();
+    });
+  });
+
+  // Export
+  document.getElementById("exportBtn").addEventListener("click", () => {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      version: 1,
+      entries
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const today = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `grad-cards-backup-${today}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("Backup downloaded");
+  });
+
+  // Import
+  document.getElementById("importBtn").addEventListener("click", () => {
+    document.getElementById("importFile").click();
+  });
+  document.getElementById("importFile").addEventListener("change", (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        const incoming = Array.isArray(data) ? data : data.entries;
+        if (!Array.isArray(incoming)) throw new Error("Invalid file");
+        const choice = confirm(
+          `Import ${incoming.length} entries?\n\nOK = Merge with existing entries\nCancel = Replace everything`
+        );
+        if (choice) {
+          // Merge — skip duplicates by id
+          const existingIds = new Set(entries.map(x => x.id));
+          incoming.forEach(item => {
+            if (!item.id) item.id = uid();
+            if (!existingIds.has(item.id)) entries.push(item);
+          });
+          toast(`Merged ${incoming.length} entries`);
+        } else {
+          entries = incoming.map(item => ({ ...item, id: item.id || uid() }));
+          toast(`Replaced — ${incoming.length} entries loaded`);
+        }
+        save();
+        render();
+      } catch (err) {
+        alert("Couldn't read that file. Make sure it's a backup JSON from this app.");
+      }
+      ev.target.value = "";
+    };
+    reader.readAsText(file);
+  });
+
+  load();
+  document.getElementById("date").value = new Date().toISOString().slice(0,10);
+  render();
+</script>
+</body>
+</html>
